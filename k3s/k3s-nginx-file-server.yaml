@@ -1,0 +1,139 @@
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: file-server
+  labels:
+    app: file-server
+
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  namespace: file-server
+  name: file-server-config
+  labels:
+    app: file-server-config
+data:
+  nginx.conf: |
+    user  nginx;
+    worker_processes  1;
+
+    error_log  /var/log/nginx/error.log warn;
+    pid        /var/run/nginx.pid;
+
+    events {
+      use epoll;
+      worker_connections  1024;
+    }
+
+    http {
+      include       /etc/nginx/mime.types;
+      default_type  application/octet-stream;
+
+      log_format  main  '$remote_addr - $remote_user [$time_local] "$request" '
+      '$status $body_bytes_sent "$http_referer" '
+      '"$http_user_agent" "$http_x_forwarded_for"';
+
+      access_log  /var/log/nginx/access.log  main;
+      sendfile        on;
+      tcp_nopush     on;
+      keepalive_timeout  300;
+      server_tokens off;
+      gzip  on;
+
+      server {
+        listen 80;
+        server_name file.bgton.cn;
+        root /public;
+        location / {
+          client_max_body_size  10M;
+          dav_access    group:rw     all:rw;
+          dav_methods PUT DELETE MKCOL COPY MOVE;
+        }
+
+        location /public {
+          client_max_body_size  10M;
+          dav_access    group:rw     all:rw;
+          dav_methods PUT DELETE MKCOL COPY MOVE;
+          alias /public;
+        }
+      }
+    }
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  namespace: file-server
+  name: file-server
+  labels:
+    app: file-server
+spec:
+  ports:
+    - name: http
+      port: 80
+      targetPort: 80
+      protocol: TCP
+  selector:
+    app: file-server
+
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  namespace: file-server
+  name: file-server
+  labels:
+    app: file-server
+spec:
+  replicas: 1
+  serviceName: file-server
+  selector:
+    matchLabels:
+      app: file-server
+  template:
+    metadata:
+      labels:
+        app: file-server
+    spec:
+      containers:
+        - name: file-server
+          image: nginx:1.22.0-alpine
+          volumeMounts:
+            - mountPath: /etc/nginx/nginx.conf
+              name: file-server-config 
+              subPath: nginx.conf
+            - mountPath: /public
+              name: data-path
+      volumes:
+        - name: data-path
+          hostPath:
+            path: /opt
+        - name: file-server-config
+          configMap:
+            name: file-server-config
+            items:
+              - key: nginx.conf
+                path: nginx.conf
+
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  namespace: file-server
+  name: nginx-ingress
+  annotations:
+    kubernetes.io/ingress.class: "traefik"
+spec:
+  rules:
+    - host: file.bgton.cn
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: file-server
+                port:
+                  number: 80
