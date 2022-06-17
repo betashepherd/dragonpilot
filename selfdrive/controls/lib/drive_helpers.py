@@ -20,16 +20,10 @@ MAX_CURVATURE_RATES = [0.03762194918267951, 0.003441203371932992]
 MAX_CURVATURE_RATE_SPEEDS = [0, 35]
 
 CRUISE_LONG_PRESS = 50
-CRUISE_NEAREST_FUNC = {
-  car.CarState.ButtonEvent.Type.accelCruise: math.ceil,
-  car.CarState.ButtonEvent.Type.decelCruise: math.floor,
-}
 CRUISE_INTERVAL_SIGN = {
   car.CarState.ButtonEvent.Type.accelCruise: +1,
   car.CarState.ButtonEvent.Type.decelCruise: -1,
 }
-
-CRUISE_CONFORT_DECEL = -1.  # Confortable deceleration for cruise.
 
 # Constants for Limit controllers.
 LIMIT_ADAPT_ACC = -0.6  # (closer to zero ealier it decel) m/s^2 Ideal acceleration for the adapting (braking) phase when approaching speed limits.
@@ -60,7 +54,7 @@ def rate_limit(new_value, last_value, dw_step, up_step):
 def get_steer_max(CP, v_ego):
   return interp(v_ego, CP.steerMaxBP, CP.steerMaxV)
 
-def update_v_cruise(v_cruise_kph, buttonEvents, button_timers, enabled, metric):
+def update_v_cruise(v_cruise_kph, buttonEvents, button_timers, enabled):
   # handle button presses. TODO: this should be in state_control, but a decelCruise press
   # would have the effect of both enabling and changing speed is checked after the state transition
   if not enabled:
@@ -69,7 +63,8 @@ def update_v_cruise(v_cruise_kph, buttonEvents, button_timers, enabled, metric):
   long_press = False
   button_type = None
 
-  v_cruise_delta = 1 if metric else 1.609344
+  # v_cruise_delta = 1 if metric else 1.609344
+  v_cruise_delta = 1
 
   for b in buttonEvents:
     if b.type.raw in button_timers and not b.pressed:
@@ -87,11 +82,7 @@ def update_v_cruise(v_cruise_kph, buttonEvents, button_timers, enabled, metric):
   if button_type:
     v_cruise_delta = v_cruise_delta * (5 if long_press else 1)
     if long_press:
-      remainder = round(v_cruise_kph % v_cruise_delta, 1)
-      if remainder > 0:
-        v_cruise_kph += (v_cruise_delta - remainder) * CRUISE_INTERVAL_SIGN[button_type]
-      else:
-        v_cruise_kph += v_cruise_delta * CRUISE_INTERVAL_SIGN[button_type]
+      v_cruise_kph += v_cruise_delta * CRUISE_INTERVAL_SIGN[button_type]
     else:
       v_cruise_kph += v_cruise_delta * CRUISE_INTERVAL_SIGN[button_type]
     v_cruise_kph = clip(round(v_cruise_kph, 1), V_CRUISE_MIN, V_CRUISE_MAX)
