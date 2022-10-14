@@ -168,9 +168,10 @@ void update_max_atomic(std::atomic<T>& max, T const& value) {
 
 class LogState {
  public:
+  bool initialized = false;
   std::mutex lock;
-  void *zctx;
-  void *sock;
+  void *zctx = nullptr;
+  void *sock = nullptr;
   int print_level;
 
   LogState(const char* endpoint) {
@@ -182,9 +183,13 @@ class LogState {
     zmq_setsockopt(sock, ZMQ_LINGER, &timeout, sizeof(timeout));
 
     zmq_connect(sock, endpoint);
+
+    initialized = true;
   };
   ~LogState() {
-    zmq_close(sock);
-    zmq_ctx_destroy(zctx);
+    if (initialized) {
+      zmq_close(sock);
+      zmq_ctx_destroy(zctx);
+    }
   }
 };
