@@ -121,7 +121,7 @@ class Planner():
     self.dp_accel_profile = sm['dragonConf'].dpAccelProfile
     self.dp_following_profile_ctrl = sm['dragonConf'].dpFollowingProfileCtrl
     self.dp_following_profile = sm['dragonConf'].dpFollowingProfile
-    self.dp_following_dist = DP_FOLLOWING_DIST[0 if not self.dp_following_profile_ctrl else self.dp_following_profile]
+    self.dp_following_dist = DP_FOLLOWING_DIST[2 if not self.dp_following_profile_ctrl else self.dp_following_profile]
     self.mpcs['lead0'].set_following_distance(self.dp_following_dist)
     self.mpcs['lead1'].set_following_distance(self.dp_following_dist)
 
