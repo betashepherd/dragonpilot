@@ -2,29 +2,29 @@
 apiVersion: v1
 kind: Namespace
 metadata:
-  name: file-server
+  name: nginx
   labels:
-    app: file-server
+    app: nginx
 
 ---
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  namespace: file-server
-  name: file-server-config
+  namespace: nginx
+  name: nginx-config
   labels:
-    app: file-server-config
+    app: nginx-config
 data:
   nginx.conf: |
     user  nginx;
-    worker_processes  1;
+    worker_processes  auto;
 
     error_log  /var/log/nginx/error.log warn;
     pid        /var/run/nginx.pid;
 
     events {
       use epoll;
-      worker_connections  1024;
+      worker_connections  50000;
     }
 
     http {
@@ -45,18 +45,11 @@ data:
       server {
         listen 80;
         server_name file.bgton.cn;
-        root /public;
+        root /www-data;
         location / {
           client_max_body_size  10M;
           dav_access    group:rw     all:rw;
           dav_methods PUT DELETE MKCOL COPY MOVE;
-        }
-
-        location /public {
-          client_max_body_size  10M;
-          dav_access    group:rw     all:rw;
-          dav_methods PUT DELETE MKCOL COPY MOVE;
-          alias /public;
         }
       }
     }
@@ -65,10 +58,10 @@ data:
 apiVersion: v1
 kind: Service
 metadata:
-  namespace: file-server
-  name: file-server
+  namespace: nginx
+  name: nginx
   labels:
-    app: file-server
+    app: nginx
 spec:
   ports:
     - name: http
@@ -76,43 +69,43 @@ spec:
       targetPort: 80
       protocol: TCP
   selector:
-    app: file-server
+    app: nginx
 
 ---
 apiVersion: apps/v1
 kind: StatefulSet
 metadata:
-  namespace: file-server
-  name: file-server
+  namespace: nginx
+  name: nginx
   labels:
-    app: file-server
+    app: nginx
 spec:
   replicas: 1
-  serviceName: file-server
+  serviceName: nginx
   selector:
     matchLabels:
-      app: file-server
+      app: nginx
   template:
     metadata:
       labels:
-        app: file-server
+        app: nginx
     spec:
       containers:
-        - name: file-server
+        - name: nginx
           image: nginx:1.22.0-alpine
           volumeMounts:
             - mountPath: /etc/nginx/nginx.conf
-              name: file-server-config 
+              name: nginx-config 
               subPath: nginx.conf
-            - mountPath: /public
+            - mountPath: /www-data
               name: data-path
       volumes:
         - name: data-path
           hostPath:
-            path: /opt
-        - name: file-server-config
+            path: /www-data
+        - name: nginx-config
           configMap:
-            name: file-server-config
+            name: nginx-config
             items:
               - key: nginx.conf
                 path: nginx.conf
@@ -121,7 +114,7 @@ spec:
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
-  namespace: file-server
+  namespace: nginx
   name: nginx-ingress
   annotations:
     kubernetes.io/ingress.class: "traefik"
@@ -134,6 +127,7 @@ spec:
             pathType: Prefix
             backend:
               service:
-                name: file-server
+                name: nginx
                 port:
                   number: 80
+
